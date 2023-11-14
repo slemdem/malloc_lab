@@ -1,14 +1,3 @@
-/*
- * mm-naive.c - The fastest, least memory-efficient malloc package.
- * 
- * In this naive approach, a block is allocated by simply incrementing
- * the brk pointer.  A block is pure payload. There are no headers or
- * footers.  Blocks are never coalesced or reused. Realloc is
- * implemented directly using mm_malloc and mm_free.
- *
- * NOTE TO STUDENTS: Replace this header comment with your own header
- * comment that gives a high level description of your solution.
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
@@ -18,10 +7,6 @@
 #include "mm.h"
 #include "memlib.h"
 
-/*********************************************************
- * NOTE TO STUDENTS: Before you do anything else, please
- * provide your team information in the following struct.
- ********************************************************/
 team_t team = {
     /* Team name */
     "7team",
@@ -61,6 +46,7 @@ team_t team = {
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE((char *)(bp) - WSIZE))
 #define PREV_BLKP(bp) ((char *)(bp) - GET_SIZE((char *)(bp) - DSIZE))
 
+void * lastptr;
 
 int mm_init (void);
 void *mm_malloc (size_t size);
@@ -90,6 +76,8 @@ int mm_init(void)
     /* epilogue header */
     PUT(heap_listp + (3 * WSIZE), PACK(0, 1));
 
+    lastptr = heap_listp + DSIZE; // for doing next fit
+    
     /* Extend the empty heap whith a free block of CUNKSIZE bytes */
     if (extend_heap(CHUNCKSIZE / WSIZE) == NULL)
         return -1;
@@ -136,13 +124,19 @@ void *mm_malloc(size_t size)
 
 static void *find_fit(size_t asize)
 {
-    void *bp = mem_heap_lo() + 2 * WSIZE;
-    while(GET_SIZE(HDRP(bp)) > 0)
-    {
-        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp))))
-            return bp;
+    void *bp = lastptr;
+    while (1) { // else do nextfit
+        if (!(GET_SIZE(HDRP(bp)) > 0)) // if it is epilogue find from epilogue block
+            bp = mem_heap_lo() + DSIZE;
+
+        if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) // if size id found return bp
+            return bp;        
+
         bp = NEXT_BLKP(bp);
+
+        if(bp == lastptr) break;
     }
+    
     return NULL;
 }
 
@@ -168,6 +162,8 @@ static void place(void * bp, size_t asize)
         PUT(HDRP(bp),PACK(bsize, 1));
         PUT(FTRP(bp),PACK(bsize, 1));
     }
+    
+    lastptr = NEXT_BLKP(bp); // for next fit
 }
 
 /*
@@ -194,7 +190,7 @@ static void *extend_heap(size_t words)
 }
 
 /*
- * mm_free - Freeing a block does nothing.
+ * mm_free - Freeing a block by chage the alloc status
  */
 void mm_free(void *bp)
 {
@@ -222,6 +218,9 @@ static void *coalesece(void *bp)
     }
     else if (prev_alloc && !next_alloc) // if next block is not allocated
     {
+        if(lastptr == NEXT_BLKP(bp)) // change lastptr if needed
+            lastptr = bp;
+        
         // merge with next block
         size += GET_SIZE(HDRP(NEXT_BLKP(bp)));
         PUT(HDRP(bp), PACK(size,0));
@@ -229,6 +228,9 @@ static void *coalesece(void *bp)
     }
     else if (!prev_alloc && next_alloc) // if previous block is not allocated
     {
+        if(lastptr == bp) // change lastptr if needed
+            lastptr = PREV_BLKP(bp);
+        
         // merge with previous block
         size += GET_SIZE(HDRP(PREV_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size,0));
@@ -237,6 +239,9 @@ static void *coalesece(void *bp)
     }
     else  // both of blocks are not allocated
     {
+        if(lastptr == NEXT_BLKP(bp) || lastptr == bp) // change lastptr if needed
+            lastptr = PREV_BLKP(bp);
+
         // merge both of them
         size += GET_SIZE(HDRP(PREV_BLKP(bp))) + GET_SIZE(FTRP(NEXT_BLKP(bp)));
         PUT(HDRP(PREV_BLKP(bp)), PACK(size,0));
