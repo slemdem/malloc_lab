@@ -119,6 +119,9 @@ void *mm_malloc(size_t size)
     return bp;
 }
 
+/*
+* find the block can be located
+*/
 static void *find_fit(size_t asize)
 {
     void *bp = mem_heap_lo() + 2 * WSIZE;
