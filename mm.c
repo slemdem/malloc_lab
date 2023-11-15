@@ -125,17 +125,16 @@ void *mm_malloc(size_t size)
 static void *find_fit(size_t asize)
 {
     void *bp = lastptr;
-    while (1) { // else do nextfit
-        if (!(GET_SIZE(HDRP(bp)) > 0)) // if it is epilogue find from epilogue block
-            bp = mem_heap_lo() + DSIZE;
-
+    do { // else do nextfit
         if (!GET_ALLOC(HDRP(bp)) && (asize <= GET_SIZE(HDRP(bp)))) // if size id found return bp
             return bp;        
+            
+        if (!(GET_SIZE(HDRP(bp)) > 0)) // if it is epilogue find from epilogue block
+            bp = mem_heap_lo() + DSIZE; 
+        else
+            bp = NEXT_BLKP(bp);
 
-        bp = NEXT_BLKP(bp);
-
-        if(bp == lastptr) break;
-    }
+    } while (bp != lastptr);
     
     return NULL;
 }
